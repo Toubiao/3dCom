@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type RefObject } from 'react';
 import { store, useStore } from '../state/store';
 import { TEMPLATES, TEMPLATE_ORDER, OCCUPANCY } from '../data/templates';
 import { useCapacity, useCost, getEgress } from '../logic/analysis';
@@ -16,10 +16,25 @@ import type { TemplateId } from '../types';
 
 const scrollToPlanner = () => document.getElementById('top')?.scrollIntoView({ behavior: 'smooth' });
 
-/** Wait for the 3D engine, then render stills when the browser is idle. */
-function usePlannerReady() {
+/**
+ * True once the 3D engine exists and the element is near the viewport, so stills are only
+ * rendered for sections someone is about to see.
+ */
+function useCaptureReady(ref: RefObject<HTMLElement | null>) {
+  const [near, setNear] = useState(false);
   const [ready, setReady] = useState(false);
   useEffect(() => {
+    const el = ref.current;
+    if (!el || typeof IntersectionObserver === 'undefined') {
+      setNear(true);
+      return;
+    }
+    const io = new IntersectionObserver((entries) => entries.some((e) => e.isIntersecting) && setNear(true), { rootMargin: '600px 0px' });
+    io.observe(el);
+    return () => io.disconnect();
+  }, [ref]);
+  useEffect(() => {
+    if (!near) return;
     let id = 0;
     const check = () => {
       if (getPlanner()) setReady(true);
@@ -27,7 +42,7 @@ function usePlannerReady() {
     };
     check();
     return () => clearTimeout(id);
-  }, []);
+  }, [near]);
   return ready;
 }
 
@@ -52,7 +67,8 @@ export function SectionNav() {
 }
 
 function TemplatesSection() {
-  const ready = usePlannerReady();
+  const ref = useRef<HTMLElement>(null);
+  const ready = useCaptureReady(ref);
   const current = useStore((s) => s.templateId);
   const [photos, setPhotos] = useState<Partial<Record<TemplateId, string>>>({});
   useEffect(() => {
@@ -93,7 +109,7 @@ function TemplatesSection() {
   );
 
   return (
-    <section className="section" id="templates" aria-labelledby="templates-h">
+    <section className="section" id="templates" aria-labelledby="templates-h" ref={ref}>
       <div className="section-head">
         <span className="eyebrow">Templates</span>
         <h2 id="templates-h">Start from a room that already trades.</h2>
@@ -265,7 +281,8 @@ function DensityBar() {
 }
 
 function BrandSection() {
-  const ready = usePlannerReady();
+  const ref = useRef<HTMLElement>(null);
+  const ready = useCaptureReady(ref);
   const brand = useStore((s) => s.brand);
   const items = useStore((s) => s.items);
   const room = useStore((s) => s.room);
@@ -294,7 +311,7 @@ function BrandSection() {
   const total = counts.reduce((s, [, n]) => s + n, 0) + 3;
 
   return (
-    <section className="section section-split brand-section" id="brand" aria-labelledby="brand-h">
+    <section className="section section-split brand-section" id="brand" aria-labelledby="brand-h" ref={ref}>
       <div className="section-head">
         <span className="eyebrow">Brand colour</span>
         <h2 id="brand-h">One colour, applied across the room.</h2>

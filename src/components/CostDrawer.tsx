@@ -7,6 +7,7 @@ import { useTween } from './Odometer';
 import { ItemSymbol } from './PlanSVG';
 import type { CostTier } from '../types';
 import { slug } from '../logic/sheet';
+import { saveFile } from '../logic/download';
 
 /** Remember previous quantities so changed rows can flash. */
 function useChanged(cost: CostReport) {
@@ -30,12 +31,7 @@ export const downloadCsv = (cost: CostReport, name: string) => {
   rows.push([`Contingency (${CONTINGENCY_RATE * 100}%)`, '', '', '', String(cost.contingency)]);
   rows.push(['Total', '', '', '', String(cost.total)]);
   const csv = rows.map((r) => r.map((c) => `"${String(c ?? '').replace(/"/g, '""')}"`).join(',')).join('\n');
-  const blob = new Blob([csv], { type: 'text/csv' });
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = `${slug(name) || 'layout'}-estimate.csv`;
-  a.click();
-  setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+  return saveFile(`${slug(name) || 'layout'}-estimate.csv`, new Blob([csv], { type: 'text/csv' }));
 };
 
 export function TierSwitch({ id = 'tier' }: { id?: string }) {

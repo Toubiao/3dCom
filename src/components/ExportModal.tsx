@@ -5,6 +5,7 @@ import { getPlanner } from '../engine/Planner';
 import { PlanDrawing } from './PlanSVG';
 import { fileName, planPlacement, SHEET, sheetDate } from '../logic/sheet';
 import { buildPdf } from '../logic/pdf';
+import { saveFile, type SaveOutcome } from '../logic/download';
 import { money, TIERS } from '../logic/cost';
 import { TEMPLATES } from '../data/templates';
 import { IconCheck, IconClose, IconDownload } from './Icons';
@@ -36,7 +37,8 @@ function ExportSheet() {
   const snapshot = useMemo(() => ({ room: s.room, items: s.items, name: s.projectName, brand: s.brand, templateId: s.templateId, sprinklered: s.sprinklered }), []); // eslint-disable-line react-hooks/exhaustive-deps
   const [phase, setPhase] = useState(0);
   const [render, setRender] = useState<string | null>(null);
-  const [done, setDone] = useState<{ ok: boolean; name: string } | null>(null);
+  const [done, setDone] = useState<{ outcome: SaveOutcome; name: string } | null>(null);
+  const [saving, setSaving] = useState(false);
   const pdfRef = useRef<ReturnType<typeof buildPdf> | null>(null);
   const reduced = typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
   const n = snapshot.items.length;
@@ -78,11 +80,10 @@ function ExportSheet() {
         });
         pdfRef.current = doc;
         const name = fileName(snapshot.name);
-        doc.save(name);
-        setDone({ ok: true, name });
+        saveFile(name, doc.output('blob')).then((outcome) => setDone({ outcome, name }));
       } catch (err) {
         console.error(err);
-        setDone({ ok: false, name: '' });
+        setDone({ outcome: 'failed', name: '' });
       }
     }, reduced ? 0 : 500);
     return () => clearTimeout(id);
@@ -114,7 +115,7 @@ function ExportSheet() {
           <p className="muted">A3 landscape, 1:{scale}. Plan, perspective, capacity checks and the estimate on one page.</p>
           <ol className="export-steps">
             {STEPS.map((label, i) => {
-              const state = done && i === 6 ? 'done' : phase > i + 1 ? 'done' : phase === i + 1 ? 'active' : '';
+              const state = i === 6 && done ? (done.outcome === 'saved' ? 'done' : '') : phase > i + 1 ? 'done' : phase === i + 1 ? 'active' : '';
               return (
                 <li key={label} className={state}>
                   <span className="step-dot">{state === 'done' ? <IconCheck size={12} /> : null}</span>
@@ -124,14 +125,26 @@ function ExportSheet() {
             })}
           </ol>
           <div className="export-actions">
-            {done?.ok && (
+            {done?.outcome === 'saved' && (
               <p className="saved">
                 <IconCheck size={15} /> Saved <code>{done.name}</code>
               </p>
             )}
-            {done && !done.ok && <p className="saved bad">The PDF could not be written in this browser. Try again, or use the CSV from the estimate panel.</p>}
-            <button className="btn btn-primary" disabled={!done} onClick={() => pdfRef.current?.save(fileName(snapshot.name))}>
-              <IconDownload size={16} /> {done ? 'Download again' : 'Building…'}
+            {done?.outcome === 'declined' && <p className="saved note">Download cancelled. The sheet is ready whenever you want it.</p>}
+            {done?.outcome === 'failed' && <p className="saved bad">The PDF could not be saved in this browser. Try again, or use the CSV from the estimate panel.</p>}
+            <button
+              className="btn btn-primary"
+              disabled={!done || !pdfRef.current || saving}
+              onClick={async () => {
+                if (!pdfRef.current) return;
+                setSaving(true);
+                const name = fileName(snapshot.name);
+                const outcome = await saveFile(name, pdfRef.current.output('blob'));
+                setDone({ outcome, name });
+                setSaving(false);
+              }}
+            >
+              <IconDownload size={16} /> {!done ? 'Building…' : done.outcome === 'saved' ? 'Download again' : 'Download PDF'}
             </button>
             <button className="btn btn-ghost" onClick={close}>
               Close

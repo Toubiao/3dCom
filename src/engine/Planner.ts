@@ -124,6 +124,8 @@ export class Planner {
   private raf = 0;
   private unsub: () => void;
   private resizeObs: ResizeObserver;
+  private visibilityObs: IntersectionObserver | null = null;
+  private onScreen = true;
   private width = 1;
   private height = 1;
   private needsRender = true;
@@ -261,6 +263,14 @@ export class Planner {
     document.fonts?.ready.then(() => this.queueSign());
     this.resizeObs = new ResizeObserver(() => this.resize());
     this.resizeObs.observe(container);
+    if (typeof IntersectionObserver !== 'undefined') {
+      // stop drawing while the workspace is scrolled out of view
+      this.visibilityObs = new IntersectionObserver((entries) => {
+        this.onScreen = entries.some((e) => e.isIntersecting);
+        if (this.onScreen) this.needsRender = true;
+      });
+      this.visibilityObs.observe(container);
+    }
     this.resize();
     this.bindInput();
     this.loop();
@@ -487,6 +497,7 @@ export class Planner {
     const now = performance.now();
     const dt = Math.min(0.1, (now - this.lastFrame) / 1000);
     this.lastFrame = now;
+    if (!this.onScreen && !store.getState().exportOpen) return;
     this.time += dt;
     let animating = false;
 
@@ -1088,6 +1099,7 @@ export class Planner {
     cancelAnimationFrame(this.raf);
     this.unsub();
     this.resizeObs.disconnect();
+    this.visibilityObs?.disconnect();
     window.clearTimeout(this.signTimer);
     this.room.dispose();
     this.renderer.dispose();
