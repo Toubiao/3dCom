@@ -4,6 +4,8 @@ Fitout is a browser-based 3D planner for cafés, small offices, boutiques and re
 
 ![Split view: floor plan beside the 3D perspective](docs/planner.png)
 
+**Live site:** https://toubiao.github.io/3dCom/ (deployed by GitHub Actions on every push to the default branch)
+
 ## Run it
 
 ```bash
@@ -13,7 +15,7 @@ npm run build     # type-checks, then writes dist/ (static, relative paths)
 npm run preview
 ```
 
-The build output is static, so you can serve `dist/` from any host or subfolder.
+The build output is static, so you can serve `dist/` from any host or subfolder. `.github/workflows/deploy-pages.yml` publishes it to GitHub Pages; it needs Pages enabled once under **Settings → Pages → Source: GitHub Actions**.
 
 ## What's in it
 
